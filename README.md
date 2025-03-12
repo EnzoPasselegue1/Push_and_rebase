@@ -16,7 +16,7 @@ This script automates the **Git workflow** for pushing selected files, rebasing 
 ## 🛠️ **Installation**
 1. **Download the script manually**:
    ```bash
-   curl -O https://raw.githubusercontent.com/EnzoPasselegue1/Push_and_rebase/blob/push_and_rebase.sh
+   curl -O https://raw.githubusercontent.com/EnzoPasselegue1/Push_and_rebase/main/push_and_rebase.sh
    ```
 2. **Make it executable**:
    ```bash
