@@ -20,7 +20,7 @@ This script automates the **Git workflow** for pushing selected files, rebasing 
    ```
 2. **Make it executable**:
    ```bash
-   chmod +x Push_and_rebase.sh
+   chmod +x push_and_rebase.sh
    ```
 
 ---
@@ -28,7 +28,7 @@ This script automates the **Git workflow** for pushing selected files, rebasing 
 ## 🚀 **How to Use**
 Run the script from the terminal:
 ```bash
-./Push_and_rebase.sh
+./push_and_rebase.sh
 ```
 The script will **prompt you step by step** for the actions you want to take.
 
