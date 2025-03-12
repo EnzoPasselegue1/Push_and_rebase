@@ -3,9 +3,35 @@
 # Get the current branch name
 current_branch=$(git branch --show-current)
 
-# Ensure we are not already on 'main'
-if [ "$current_branch" == "main" ]; then
-    echo "❌ You are already on 'main'. Switch to another branch before running this script."
+# Ensure we are not already on the target branch
+if [ -z "$current_branch" ]; then
+    echo "❌ No branch detected. Make sure you are inside a Git repository."
+    exit 1
+fi
+
+# Fetch the latest branch list
+git fetch --all --quiet
+
+# List available branches and ask for a target branch
+echo "📂 Available branches:"
+git branch -r | sed 's/origin\///' | sort | uniq
+read -p "🚀 Select the target branch to integrate into (e.g., main, dev, release): " target_branch
+
+# Ensure the selected branch is valid
+if ! git show-ref --verify --quiet refs/heads/"$target_branch"; then
+    echo "❌ Branch '$target_branch' does not exist locally. Checking remote..."
+    if git ls-remote --exit-code --heads origin "$target_branch"; then
+        echo "📥 Fetching '$target_branch' from remote..."
+        git checkout -b "$target_branch" origin/"$target_branch"
+    else
+        echo "❌ The branch '$target_branch' does not exist in the remote repository either."
+        exit 1
+    fi
+fi
+
+# Ensure we are not integrating into the same branch
+if [ "$current_branch" == "$target_branch" ]; then
+    echo "❌ You cannot integrate a branch into itself. Choose another branch."
     exit 1
 fi
 
@@ -41,62 +67,68 @@ else
     git push origin "$current_branch"
 fi
 
-# Ask if we should update 'main' before rebasing
-read -p "🔄 Update 'main' before rebasing? (y/n) : " update_main
-if [[ "$update_main" == "y" ]]; then
-    echo "📥 Updating 'main'..."
-    git checkout main
-    git pull origin main
+# Ask if we should update the target branch before integrating
+read -p "🔄 Update '$target_branch' before proceeding? (y/n) : " update_target
+if [[ "$update_target" == "y" ]]; then
+    echo "📥 Updating '$target_branch'..."
+    git checkout "$target_branch"
+    git pull origin "$target_branch"
     git checkout "$current_branch"
 fi
 
-# Rebase on main
-echo "🔀 Rebasing '$current_branch' onto 'main'..."
-git rebase main
+# Ask the user to choose between merge or rebase
+echo "🔀 Choose your integration method:"
+echo "1️⃣ Merge (Keep commit history and create a merge commit)"
+echo "2️⃣ Rebase (Rewrite commit history for a clean linear history)"
+read -p "Enter 1 for Merge, 2 for Rebase: " integration_method
 
-# Check for conflicts
-if [ $? -ne 0 ]; then
-    echo "❌ Conflicts detected! Resolve them, then run:"
-    echo "   git rebase --continue"
-    exit 1
-fi
+if [[ "$integration_method" == "2" ]]; then
+    # Rebase option
+    echo "🔀 Rebasing '$current_branch' onto '$target_branch'..."
+    git rebase "$target_branch"
 
-# Confirm before forcing the push
-read -p "⚠️ Force push after rebase? (y/n) : " confirm_force_push
-if [[ "$confirm_force_push" == "y" ]]; then
-    echo "📤 Pushing rebased changes..."
-    git push origin "$current_branch" --force-with-lease
+    # Check for conflicts
+    if [ $? -ne 0 ]; then
+        echo "❌ Conflicts detected! Resolve them, then run:"
+        echo "   git rebase --continue"
+        exit 1
+    fi
+
+    # Confirm before forcing the push
+    read -p "⚠️ Force push after rebase? (y/n) : " confirm_force_push
+    if [[ "$confirm_force_push" == "y" ]]; then
+        echo "📤 Pushing rebased changes..."
+        git push origin "$current_branch" --force-with-lease
+    else
+        echo "🚫 Force push canceled. You can do it manually if needed."
+        exit 1
+    fi
 else
-    echo "🚫 Force push canceled. You can do it manually if needed."
-    exit 1
-fi
+    # Merge option
+    echo "🔄 Merging '$current_branch' into '$target_branch'..."
+    git checkout "$target_branch"
+    git pull origin "$target_branch"  # Ensure the target branch is up to date before merging
 
-# Merge the branch into 'main' after rebase
-read -p "🔄 Merge '$current_branch' into 'main' after rebase? (y/n) : " merge_main
-if [[ "$merge_main" == "y" ]]; then
-    git checkout main
-    git pull origin main  # Ensure 'main' is up to date before merging
-
-    if ! git merge "$current_branch"; then
+    if ! git merge --no-ff "$current_branch"; then
         echo "❌ Merge conflicts detected! Resolve them, then run:"
         echo "   git merge --continue"
         exit 1
     fi
 
-    read -p "📤 Push 'main' to remote after merge? (y/n) : " push_main
-    if [[ "$push_main" == "y" ]]; then
-        git push origin main
+    read -p "📤 Push '$target_branch' to remote after merge? (y/n) : " push_target
+    if [[ "$push_target" == "y" ]]; then
+        git push origin "$target_branch"
     else
         echo "🚫 Push canceled. You will need to push manually if needed."
     fi
 fi
 
-# Ask if the branch should be deleted after merge
-read -p "🗑️ Delete branch '$current_branch' after merge? (y/n) : " delete_branch
+# Ask if the branch should be deleted after integration
+read -p "🗑️ Delete branch '$current_branch' after integration? (y/n) : " delete_branch
 if [[ "$delete_branch" == "y" ]]; then
     git branch -d "$current_branch"
     git push origin --delete "$current_branch"
     echo "✅ The branch '$current_branch' has been deleted."
 fi
 
-echo "🎉 Everything is up to date with selective file commits!"
+echo "🎉 Everything is up to date with your selected integration method into '$target_branch'!"
