@@ -131,4 +131,15 @@ if [[ "$delete_branch" == "y" ]]; then
     echo "✅ The branch '$current_branch' has been deleted."
 fi
 
+# Display a visual representation of the Git history using `tig`
+if command -v tig &> /dev/null; then
+    echo "📊 Displaying the updated Git history with 'tig'..."
+    tig
+else
+    echo "❌ 'tig' is not installed. To visualize the Git history, install it using:"
+    echo "   sudo apt install tig  # Debian/Ubuntu"
+    echo "   brew install tig      # macOS"
+    echo "   sudo dnf install tig  # Fedora"
+fi
+
 echo "🎉 Everything is up to date with your selected integration method into '$target_branch'!"
