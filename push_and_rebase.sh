@@ -31,9 +31,46 @@ fi
 
 # Ensure we are not integrating into the same branch
 if [ "$current_branch" == "$target_branch" ]; then
-    echo "❌ You cannot integrate a branch into itself. Choose another branch."
-    exit 1
+    echo "🔄 You are already on '$target_branch'. Instead of integrating, we will update your branch."
+    
+    # Check for modified files
+    modified_files=$(git status --porcelain | awk '{print $2}')
+
+    if [ -z "$modified_files" ]; then
+        echo "✅ No changes detected. Your branch is already up to date."
+    else
+        echo "📂 Modified files detected:"
+        declare -a selected_files=()
+
+        # Ask the user which files to add
+        for file in $modified_files; do
+            read -p "➕ Add '$file' to the commit? (y/n) : " add_file
+            if [[ "$add_file" == "y" ]]; then
+                selected_files+=("$file")
+            fi
+        done
+
+        # Ensure at least one file is selected
+        if [ ${#selected_files[@]} -eq 0 ]; then
+            echo "⚠️ No files selected, commit aborted."
+            exit 1
+        fi
+
+        # Add selected files
+        git add "${selected_files[@]}"
+
+        # Ask for a commit message
+        read -p "📝 Enter your commit message: " commit_message
+        git commit -m "$commit_message"
+        
+        echo "📤 Pushing changes to '$target_branch'..."
+        git push origin "$target_branch"
+    fi
+
+    echo "🎉 Your branch '$target_branch' is now updated!"
+    exit 0
 fi
+
 
 # Check for modified files
 modified_files=$(git status --porcelain | awk '{print $2}')
@@ -87,11 +124,21 @@ if [[ "$integration_method" == "2" ]]; then
     echo "🔀 Rebasing '$current_branch' onto '$target_branch'..."
     git rebase "$target_branch"
 
-    # Check for conflicts
+    # Handle rebase conflicts
     if [ $? -ne 0 ]; then
-        echo "❌ Conflicts detected! Resolve them, then run:"
+        echo "❌ Rebase conflicts detected! Please resolve them."
+        echo "🛠️ Once resolved, run the following command in another terminal:"
         echo "   git rebase --continue"
-        exit 1
+        echo "🔄 Press Enter once you have resolved the conflicts..."
+        read -p ""
+
+        # Loop to ensure conflicts are resolved
+        while git rebase --continue 2>&1 | grep -q "CONFLICT"; do
+            echo "⚠️ Conflicts still present! Please resolve them and press Enter again..."
+            read -p ""
+        done
+
+        echo "✅ All conflicts resolved. Continuing rebase..."
     fi
 
     # Confirm before forcing the push
@@ -110,9 +157,18 @@ else
     git pull origin "$target_branch"  # Ensure the target branch is up to date before merging
 
     if ! git merge --no-ff "$current_branch"; then
-        echo "❌ Merge conflicts detected! Resolve them, then run:"
-        echo "   git merge --continue"
-        exit 1
+        echo "❌ Merge conflicts detected! Please resolve them."
+        echo "🛠️ Once resolved, press Enter to continue..."
+        read -p ""
+
+        # Loop to ensure conflicts are resolved
+        while git diff --name-only --diff-filter=U | grep -q .; do
+            echo "⚠️ Conflicts still present! Please resolve them and press Enter again..."
+            read -p ""
+        done
+
+        echo "✅ All conflicts resolved. Continuing merge..."
+        git commit -am "Merge conflict resolved"
     fi
 
     read -p "📤 Push '$target_branch' to remote after merge? (y/n) : " push_target
@@ -134,7 +190,7 @@ fi
 # Display a visual representation of the Git history using `tig`
 if command -v tig &> /dev/null; then
     echo "📊 Displaying the updated Git history with 'tig'..."
-    tig
+    tig --all
 else
     echo "❌ 'tig' is not installed. To visualize the Git history, install it using:"
     echo "   sudo apt install tig  # Debian/Ubuntu"
